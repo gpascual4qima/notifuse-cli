@@ -86,18 +86,9 @@ to quickly create a Cobra application.`,
 			dto := new(UpsertUsers)
 			dto.Users = []User{*user}
 
-			client := new(http.Client)
-
 			httpRequest := upsertUsers(dto)
+			runRequest(httpRequest)
 
-			response, err := client.Do(httpRequest)
-
-			cobra.CheckErr(err)
-			defer response.Body.Close()
-
-			res, err := httputil.DumpResponse(response, true)
-			cobra.CheckErr(err)
-			fmt.Println(string(res))
 		} else {
 			confFile, err := ioutil.ReadFile(filePath)
 			cobra.CheckErr(err)
@@ -106,20 +97,39 @@ to quickly create a Cobra application.`,
 			err = json.Unmarshal(confFile, &users)
 			cobra.CheckErr(err)
 
-			amountUsers := len(users.Users)
+			var dto *UpsertUsers
 
-			if amountUsers > 100 {
+			for _, user := range users.Users {
+				dto = new(UpsertUsers)
+				dto.Users = []User{user}
+				req:= upsertUsers(dto)
+				runRequest(req)
+			}
+
+			// Batch doesn't work
+			/* if amountUsers > 2 {
 				cursor := 0
 				var dto *UpsertUsers
 				for over := true; over; {
+					
+					next := cursor + 2
+					if next > amountUsers {
+						next = amountUsers
+						over = false
+					}
+
 					dto = new(UpsertUsers)
-					dto.Users = users.Users[cursor : cursor+100]
-					fmt.Println(len(dto.Users))
+					dto.Users = users.Users[cursor:next-1]
+					req := upsertUsers(dto)
+					runRequest(req)
+
+					cursor = next
 				}
 
 			} else {
-				upsertUsers(users)
-			}
+				req := upsertUsers(users)
+				runRequest(req)
+			} */
 		}
 
 	},
@@ -144,6 +154,19 @@ func upsertUsers(dto *UpsertUsers) *http.Request {
 
 	return httpRequest
 
+}
+
+func runRequest(httpRequest *http.Request) {
+	client := new(http.Client)
+
+	response, err := client.Do(httpRequest)
+
+	cobra.CheckErr(err)
+	defer response.Body.Close()
+
+	res, err := httputil.DumpResponse(response, true)
+	cobra.CheckErr(err)
+	fmt.Println(string(res))
 }
 
 func init() {
