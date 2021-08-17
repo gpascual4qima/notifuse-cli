@@ -32,14 +32,14 @@ type UpsertUsers struct {
 
 type User struct {
 	Id        string `json:"id"`
-	Email     string `json:"email"`
-	Telephone string `json:"telephone"`
-	Language  string `json:"language"`
-	Timezone  string `json:"timezone"`
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
-	PhotoUrl  string `json:"photoURL"`
-	Country   string `json:"country" `
+	Email     string `json:"email,omitempty"`
+	Telephone string `json:"telephone,omitempty"`
+	Language  string `json:"language,omitempty"`
+	Timezone  string `json:"timezone,omitempty"`
+	FirstName string `json:"firstName,omitempty"`
+	LastName  string `json:"lastName,omitempty"`
+	PhotoUrl  string `json:"photoURL,omitempty"`
+	Country   string `json:"country,omitempty" `
 }
 
 var id string
