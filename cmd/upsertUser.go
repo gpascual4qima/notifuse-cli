@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 
@@ -51,6 +52,7 @@ var country string
 var language string
 var timezone string
 var photoUrl string
+var filePath string
 
 // upsertUserCmd represents the upsertUser command
 var upsertUserCmd = &cobra.Command{
@@ -62,50 +64,86 @@ and usage of using your command. For example:
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if filePath != "" {
+			fmt.Println("The configuration will be only read from file ", filePath)
+		}
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("upsertUser called")
 
-		user := new(User)
-		user.Email= email
-		user.Telephone = mobile
-		user.Country = country
-		user.FirstName = firstName
-		user.LastName = lastName
-		user.Id = id
-		user.PhotoUrl= photoUrl
-		
-		dto := new(UpsertUsers)
-		dto.Users = []User{*user}
+		if filePath == "" {
 
-		client := new(http.Client);
-		json_data, err := json.Marshal(dto)
-		cobra.CheckErr(err)
-		httpRequest, err := http.NewRequest("POST", "https://api.notifuse.com/users.upsert", bytes.NewBuffer(json_data))
-		cobra.CheckErr(err)
+			user := new(User)
+			user.Email = email
+			user.Telephone = mobile
+			user.Country = country
+			user.FirstName = firstName
+			user.LastName = lastName
+			user.Id = id
+			user.PhotoUrl = photoUrl
 
-			
-		
-		apiKey := viper.GetString("NOTIFUSE_APIKEY")
-		if(apiKey == ""){
-			cobra.CompError("no API key is supplied")
+			dto := new(UpsertUsers)
+			dto.Users = []User{*user}
+
+			client := new(http.Client)
+
+			httpRequest := upsertUsers(dto)
+
+			response, err := client.Do(httpRequest)
+
+			cobra.CheckErr(err)
+			defer response.Body.Close()
+
+			res, err := httputil.DumpResponse(response, true)
+			cobra.CheckErr(err)
+			fmt.Println(string(res))
+		} else {
+			confFile, err := ioutil.ReadFile(filePath)
+			cobra.CheckErr(err)
+
+			var users *UpsertUsers
+			err = json.Unmarshal(confFile, &users)
+			cobra.CheckErr(err)
+
+			amountUsers := len(users.Users)
+
+			if amountUsers > 100 {
+				cursor := 0
+				var dto *UpsertUsers
+				for over := true; over; {
+					dto = new(UpsertUsers)
+					dto.Users = users.Users[cursor : cursor+100]
+					fmt.Println(len(dto.Users))
+				}
+
+			} else {
+				upsertUsers(users)
+			}
 		}
-		httpRequest.Header.Add("Authorization", "Bearer " + apiKey)
-		req, err := httputil.DumpRequest(httpRequest,true);
-		cobra.CheckErr(err)
-		fmt.Println(string(req))
-		response, err := client.Do(httpRequest)
-		
-		cobra.CheckErr(err)
-		defer response.Body.Close()
-		
-		res, err := httputil.DumpResponse(response,true)
-		cobra.CheckErr(err)
-		fmt.Println(string(res))
-
-		
-		
 
 	},
+}
+
+func upsertUsers(dto *UpsertUsers) *http.Request {
+
+	json_data, err := json.Marshal(dto)
+	cobra.CheckErr(err)
+
+	httpRequest, err := http.NewRequest("POST", "https://api.notifuse.com/users.upsert", bytes.NewBuffer(json_data))
+	cobra.CheckErr(err)
+
+	apiKey := viper.GetString("NOTIFUSE_APIKEY")
+	if apiKey == "" {
+		cobra.CompError("no API key is supplied")
+	}
+
+	httpRequest.Header.Add("Authorization", "Bearer "+apiKey)
+	req, _ := httputil.DumpRequest(httpRequest, true)
+	fmt.Println(string(req))
+
+	return httpRequest
+
 }
 
 func init() {
@@ -120,7 +158,7 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// upsertUserCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	upsertUserCmd.Flags().StringVar(&id,"id","","User id")
+	upsertUserCmd.Flags().StringVar(&id, "id", "", "User id")
 	upsertUserCmd.Flags().StringVar(&firstName, "first-name", "", "User firstname")
 	upsertUserCmd.Flags().StringVar(&lastName, "last-name", "", "User last name")
 	upsertUserCmd.Flags().StringVar(&email, "email", "", "User email")
@@ -128,5 +166,6 @@ func init() {
 	upsertUserCmd.Flags().StringVar(&language, "lang", "", "User language")
 	upsertUserCmd.Flags().StringVar(&country, "country", "", "User country")
 	upsertUserCmd.Flags().StringVar(&mobile, "phone", "", "User mobile(international format)")
-	upsertUserCmd.Flags().StringVar(&photoUrl, "profile-picture","","User profile picture")
+	upsertUserCmd.Flags().StringVar(&photoUrl, "profile-picture", "", "User profile picture")
+	upsertUserCmd.Flags().StringVar(&filePath, "from-file", "", "Upsert users from file")
 }
